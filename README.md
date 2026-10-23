@@ -2,6 +2,8 @@
 
 A read-only database explorer MCP (Model Context Protocol) server supporting SQLite and PostgreSQL backends. Built for use with [Opencode](https://opencode.ai) and any MCP-compatible client.
 
+https://github.com/user-attachments/assets/b4ca24ec-37d1-4d46-88c8-7f0c9919486b
+
 ## Features
 
 - **Read-only by design**: Database connections are opened read-only; writes are impossible at the driver level.
