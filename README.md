@@ -24,51 +24,31 @@ https://github.com/user-attachments/assets/b4ca24ec-37d1-4d46-88c8-7f0c9919486b
 git clone https://github.com/your-username/Database-Explorer-MCP-Server.git
 cd Database-Explorer-MCP-Server/mcp-server
 cp .env.example .env
-# Edit .env with your database URL and (optional) Kaggle credentials
+# Edit .env with your Kaggle credentials (KAGGLE_USERNAME, KAGGLE_KEY)
+# and confirm MCP_DATABASE_URL.
 ```
 
-### 2. Install dependencies
+### 2. Start everything with Docker Compose
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# or: source .venv/bin/activate  # macOS/Linux
-pip install -e ".[dev]"
+docker-compose up -d --build
 ```
 
-### 3. Start Postgres (Docker)
+This single command:
+
+1. Starts a Postgres 15 container and loads the Olist schema.
+2. Downloads the Olist Brazilian E-Commerce CSV dataset via the Kaggle API
+   (using `KAGGLE_USERNAME`/`KAGGLE_KEY` from `.env`).
+3. Loads the CSVs into Postgres in foreign-key-safe order.
+4. Starts the MCP server on `http://localhost:8765/mcp`.
+
+Check that everything is healthy:
 
 ```bash
-docker-compose up -d
+docker-compose ps
 ```
 
-Wait for the container to be healthy, then load the Olist sample data:
-
-```bash
-# Download Olist CSVs via Kaggle API (requires KAGGLE_USERNAME/KAGGLE_KEY in .env)
-python scripts/download_data.py
-
-# Load CSVs into Postgres in foreign-key-safe order
-python scripts/load_data.py --data-dir ./data --reset
-```
-
-### 4. Start the MCP server
-
-Streamable HTTP (recommended for Opencode):
-
-```bash
-uvicorn mcp_server.server:build_app --factory --host 127.0.0.1 --port 8765
-```
-
-Or stdio (for MCP Inspector):
-
-```bash
-python -m mcp_server
-```
-
-The server listens at `http://localhost:8765/mcp`.
-
-### 5. Connect to Opencode
+### 3. Connect to Opencode
 
 Add to `~/.config/opencode/opencode.json`:
 
@@ -85,6 +65,21 @@ Add to `~/.config/opencode/opencode.json`:
 ```
 
 Restart Opencode to pick up the change.
+
+### Running locally without Docker
+
+For development, you can run the MCP server directly against a local Postgres
+or the sample SQLite DB:
+
+```bash
+# Using the sample SQLite DB (no setup required)
+uvicorn mcp_server.server:build_app --factory --host 127.0.0.1 --port 8765
+
+# Or stdio transport (for MCP Inspector)
+python -m mcp_server
+```
+
+The server listens at `http://localhost:8765/mcp` (HTTP) or stdio.
 
 ## Tools
 
@@ -153,11 +148,13 @@ pytest tests/
 Runs 37 tests: 24 SQLite unit tests + 13 Postgres integration tests (skipped if Postgres is unavailable).
 
 Postgres integration tests require Docker:
+
 ```bash
-docker-compose up -d
-python scripts/load_data.py --data-dir ./data --reset
+docker-compose up -d --build
 pytest tests/
 ```
+
+The `data-loader` service downloads and loads the Olist dataset automatically when the stack starts.
 
 ## Linting & Type Checking
 

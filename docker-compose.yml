@@ -19,6 +19,39 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  data-loader:
+    build: .
+    container_name: mcp-data-loader
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Connect to the Postgres service inside the Docker network.
+      MCP_DATABASE_URL: postgresql://olist_owner:olist_owner_password@postgres:5432/olist
+    volumes:
+      - ./data:/app/data
+    restart: "no"
+
+  mcp-server:
+    build: .
+    container_name: mcp-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+      data-loader:
+        condition: service_completed_successfully
+    env_file:
+      - .env
+    environment:
+      # Connect to the Postgres service inside the Docker network.
+      MCP_DATABASE_URL: postgresql://olist_owner:olist_owner_password@postgres:5432/olist
+    ports:
+      - "8765:8765"
+    restart: unless-stopped
 
 volumes:
   olist_data:
