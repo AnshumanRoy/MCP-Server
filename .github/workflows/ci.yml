@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: olist
+          POSTGRES_USER: olist_owner
+          POSTGRES_PASSWORD: olist_owner_password
+          POSTGRES_INITDB_ARGS: "--auth-local=trust"
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U olist_owner -d olist"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Wait for Postgres to be ready
+        run: |
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -p 5432 -U olist_owner -d olist && exit 0
+            sleep 2
+          done
+          echo "Postgres did not become ready in time" >&2
+          exit 1
+
+      - name: Download Olist dataset (Kaggle)
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          python scripts/download_data.py --data-dir ./data
+
+      - name: Load data into Postgres
+        env:
+          MCP_DATABASE_URL: postgresql://olist_owner:olist_owner_password@localhost:5432/olist
+        run: |
+          python scripts/load_data.py --data-dir ./data --reset
+
+      - name: Run ruff
+        run: ruff check src/ tests/ scripts/
+
+      - name: Run mypy
+        run: mypy src/
+
+      - name: Run tests
+        env:
+          MCP_DATABASE_URL: postgresql://olist_owner:olist_owner_password@localhost:5432/olist
+        run: pytest tests/
